@@ -1,128 +1,114 @@
+
 '''TimedGameMaster.py based on GameMaster.py which in turn is
  based on code from RunKInARow.py
 
-S. Tanimoto, April 29, 2015.
+S. Tanimoto, May 3
 '''
+VERSION = '0.6-BETA'
+
+# Get names of players and time limit from the command line.
+
+import sys
+TIME_PER_MOVE = 0.5 # default time limit is half a second.
+if len(sys.argv) > 1:
+    import importlib
+    player1 = importlib.import_module(sys.argv[1])
+    player2 = importlib.import_module(sys.argv[2])
+    if len(sys.argv) > 3:
+        TIME_PER_MOVE = float(sys.argv[3])
+else:
+    import TestAgent1 as player1
+    import TestAgent1 as player2
+
 
 # Specify details of a match here:
-import Hobgoblin as player1
-import Player as player2
-#from FiveInARowGameType import K, NAME, INITIAL_STATE
-from TicTacToeGameType import K, NAME, INITIAL_STATE
-TIME_PER_MOVE = 0.5
 
-USE_HTML = True
+import baroque_succ as bcs
 
+VALIDATE_MOVES = True # If players are trusted not to cheat, this could be turned off to save time.
 
-from winTesterForK import winTesterForK
-if USE_HTML: import gameToHTML
+from winTester import winTester
 
-CURRENT_PLAYER = 'X'
-N = len(INITIAL_STATE[0])    # height of board
-M = len(INITIAL_STATE[0][0]) # width of board
+CURRENT_PLAYER = bcs.WHITE
+
 
 FINISHED = False
 def runGame():
-    currentState = INITIAL_STATE
+    currentState = bcs.BC_state()
+    print('Baroque Chess Gamemaster v'+VERSION)
     print('The Gamemaster says, "Players, introduce yourselves."')
-    print('     (Playing X:) '+player1.introduce())
-    print('     (Playing O:) '+player2.introduce())
+    print('     (Playing WHITE:) '+player1.introduce())
+    print('     (Playing BLACK:) '+player2.introduce())
 
-    if USE_HTML:
-        gameToHTML.startHTML(player1.nickname(), player2.nickname(), NAME, 1)
     try:
-        p1comment = player1.prepare(INITIAL_STATE, K, 'X', player2.nickname())
+        p1comment = player1.prepare(player2.nickname())
     except:
         report = 'Player 1 ('+player1.nickname()+' failed to prepare, and loses by default.'
         print(report)
-        if USE_HTML: gameToHTML.reportResult(report)
         report = 'Congratulations to Player 2 ('+player2.nickname()+')!'
         print(report)
-        if USE_HTML: gameToHTML.reportResult(report)
-        if USE_HTML: gameToHTML.endHTML()
         return
     try:
-        p2comment = player2.prepare(INITIAL_STATE, K, 'X', player1.nickname())
+        p2comment = player2.prepare(player1.nickname())
     except:
         report = 'Player 2 ('+player2.nickname()+' failed to prepare, and loses by default.'
         print(report)
-        if USE_HTML: gameToHTML.reportResult(report)
         report = 'Congratulations to Player 1 ('+player1.nickname()+')!'
         print(report)
-        if USE_HTML: gameToHTML.reportResult(report)
-        if USE_HTML: gameToHTML.endHTML()
         return
-        return
-
 
     print('The Gamemaster says, "Let\'s Play!"')
     print('The initial state is...')
 
     currentRemark = "The game is starting."
-    if USE_HTML: gameToHTML.stateToHTML(currentState)
 
-    XsTurn = True
+    WHITEsTurn = True
     name = None
     global FINISHED
     FINISHED = False
-    turnCount = 0
-    printState(currentState)
+    turnCount = 1
+    print(currentState)
     while not FINISHED:
-        who = currentState[1]
+        who = currentState.whose_move
+        if who==bcs.WHITE: side = 'WHITE'
         global CURRENT_PLAYER
         CURRENT_PLAYER = who
-        if XsTurn:
+        if WHITEsTurn:
             playerResult = timeout(player1.makeMove,args=(currentState, currentRemark, TIME_PER_MOVE), kwargs={}, timeout_duration=TIME_PER_MOVE, default=(None,"I give up!"));
             name = player1.nickname()
-            XsTurn = False
+            WHITEsTurn = False
         else:
             playerResult = timeout(player2.makeMove,args=(currentState, currentRemark, TIME_PER_MOVE), kwargs={}, timeout_duration=TIME_PER_MOVE, default=(None,"I give up!"));
             name = player2.nickname()
-            XsTurn = True
+            WHITEsTurn = True
         moveAndState, currentRemark = playerResult
         if moveAndState==None:
             FINISHED = True; continue
+        if VALIDATE_MOVES:
+            legal_states = bcs.successors(currentState)
+            if not OCCURS_IN(moveAndState[1], legal_states):
+                print("Illegal move by "+side)  # Returned state is:\n" + str(currentState))
+                break
         move, currentState = moveAndState
-        moveReport = "Move is by "+who+" to "+str(move)
+        side = 'BLACK'
+        if who==bcs.WHITE: side = 'WHITE'
+        moveReport = "Turn "+str(turnCount)+": Move is by "+side+" to "+str(move)
         print(moveReport)
         utteranceReport = name +' says: '+currentRemark
         print(utteranceReport)
-        if USE_HTML: gameToHTML.reportResult(moveReport)
-        if USE_HTML: gameToHTML.reportResult(utteranceReport)
-        possibleWin = winTesterForK(currentState, move, K)
+        possibleWin = winTester(currentState)
         if possibleWin != "No win":
             FINISHED = True
-            printState(currentState)
-            if USE_HTML: gameToHTML.stateToHTML(currentState, finished=True)
+            print(currentState)
             print(possibleWin)
-            if USE_HTML: gameToHTML.reportResult(possibleWin)
-            if USE_HTML: gameToHTML.endHTML()
             return
-        printState(currentState)
-        if USE_HTML: gameToHTML.stateToHTML(currentState)
+        print(currentState)
         turnCount += 1
         #if turnCount == 9: FINISHED=True
-    printState(currentState)
-    if USE_HTML: gameToHTML.stateToHTML(currentState)
-    who = currentState[1]
+    print(currentState)
+    who = currentState.whose_move
     print("Game over.")
-    if USE_HTML: gameToHTML.reportResult("Game Over; it's a draw")
-    if USE_HTML: gameToHTML.endHTML()
 
-def printState(s):
-    global FINISHED
-    board = s[0]
-    who = s[1]
-    horizontalBorder = "+"+3*N*"-"+"+"
-    print(horizontalBorder)
-    for row in board:
-        print("|",end="")
-        for item in row:
-            print(" "+item+" ", end="")
-        print("|")
-    print(horizontalBorder)
-    if not FINISHED:
-      print("It is "+who+"'s turn to move.\n")
 
 import sys
 import time
@@ -144,7 +130,7 @@ def timeout(func, args=(), kwargs={}, timeout_duration=1, default=None):
                 self.result = default
 
     pt = PlayerThread()
-    print("timeout_duration = "+str(timeout_duration))
+    #print("timeout_duration = "+str(timeout_duration))
     pt.start()
     started_at = time.time()
     #print("makeMove started at: " + str(started_at))
@@ -152,7 +138,7 @@ def timeout(func, args=(), kwargs={}, timeout_duration=1, default=None):
     ended_at = time.time()
     #print("makeMove ended at: " + str(ended_at))
     diff = ended_at - started_at
-    print("Time used in makeMove: %0.4f seconds" % diff)
+    print("Time used in makeMove: %0.4f seconds out of " % diff, timeout_duration)
     if pt.isAlive():
         print("Took too long.")
         print("We are now terminating the game.")
@@ -164,5 +150,21 @@ def timeout(func, args=(), kwargs={}, timeout_duration=1, default=None):
         print("Within the time limit -- nice!")
         return pt.result
 
+
+def OCCURS_IN(state, listOfStates):
+  for s in listOfStates:
+    if DEEP_EQUALS(state, s):
+        return True
+  return False
+
+def DEEP_EQUALS(s1, s2):
+  if s1.whose_move != s2.whose_move:
+    return False
+  b1 = s1.board
+  b2 = s2.board
+  for i in range(8):
+    for j in range(8):
+      if b1[i][j] != b2[i][j]: return False
+  return True
 
 runGame()

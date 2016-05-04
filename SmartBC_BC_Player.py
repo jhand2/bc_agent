@@ -38,6 +38,7 @@ P P P P P P P P
 F L I W K I L C
 ''')
 
+
 class BC_state:
     """Representation of a baroque chess state."""
     def __init__(self, old_board=INITIAL, whose_move=WHITE):
@@ -77,7 +78,9 @@ def nickname():
 
 
 def makeMove(currentState, currentRemark, timeLimit=10000):
-    return [["", []], "Take that!!!"]
+    state = BC_state(old_board=INITIAL)
+    move = minimax(state)
+    return move
 
 
 def staticEval(state):
@@ -92,8 +95,19 @@ def move(s, move):
     return []
 
 
-def minimax():
-    return None
+def minimax(state, curr_ply=0):
+    ply = 5
+    player = state.whose_move
+    board = state.board
+
+    # Generate board states
+    new_states = []
+    for row in range(board):
+        for col in range(row):
+            piece = state[row][col]
+            m = move_funcs[piece / 2]((col, row))
+
+    return [["", []], "Take that!!!"]
 
 
 class Operator:
