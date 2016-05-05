@@ -174,8 +174,11 @@ def filter_board(start_pos, end_pos, state):
     new_state = BC_state(old_board=new_b, whose_move=state.whose_move % 1)
     return new_state
 
-
+# --------------
 # Make operators
+# --------------
+
+
 def gen_pincer_moves(pos):
     """
     Generates all possible moves for pincers regardless of what other pieces
