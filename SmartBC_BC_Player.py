@@ -260,6 +260,119 @@ def gen_king_moves(pos):
     return moves
 
 
+def gen_king_captures(s, moves, player):
+    """
+    If movable tile contains enemy, add capture move
+    Black = 0 (evens), White = 1 (odds)
+    """
+    captures = []
+    for move in moves:
+        tile = s.board[move[0]][move[1]]
+        if (tile + 1) % 2 == player and tile != 0:
+            capture.append(move)
+    return captures
+
+
+def gen_pincer_captures(s, moves, player, pos):
+    """
+    If movable tile contains enemy and tile past enemy is ally, add capture move
+    """
+    captures = []
+    for move in moves:
+        tile = s.board[move[0]][move[1]]
+        x_dir = move[0] - pos[0]
+        y_dir = move[1] - pos[1]
+        if not (move[0] + x_dir) < min_x and not (move[0] + x_dir) >= max_x \
+                and not (move[1] + y_dir) < min_y and not (move[1] + y_dir) >= max_y:
+            partner_tile = s.board[move[0] + x_dir][move[1] + y_dir]
+            if (tile + 1) % 2 == player and partner_tile % 2 == player and partner_tile != 0:
+                capture.append(move)
+    return captures
+
+
+def gen_withdrawer_captures(s, moves, player, pos):
+    """
+    If movable tile contains enemy and any tile away from enemy is empty, add capture move
+    """
+    captures = []
+    for move in moves:
+        tile = s.board[move[0]][move[1]]
+        if (tile + 1) % 2 == player:
+            x_dir = move[0] - pos[0]
+            y_dir = move[1] - pos[1]
+            withdraw_x = pos[0] - x_dir
+            withdraw_y = pos[1] - y_dir
+            if not withdraw_x < min_x and not withdraw_x >= max_x \
+                    and not withdraw_y < min_y and not withdraw_y >= max_y:
+                withdraw_tile = s.board[withdraw_x][withdraw_y]
+                while withdraw_tile == 0:
+                    captures.append(withdraw_tile)
+                    withdraw_x -= x_dir
+                    withdraw_y -= y-dir
+                    if not withdraw_x < min_x and not withdraw_x >= max_x \
+                            and not withdraw_y < min_y and not withdraw_y >= max_y:
+                        withdraw_tile = s.board[withdraw_x][withdraw_y]
+                    else:
+                        withdraw_tile = -1
+    return captures
+
+
+def gen_leaper_captures(s, moves, player, pos):
+    """
+    If movable tile contains enemy, add all tiles after it until you reach end of board or reach non-blank tile
+    """
+    captures = []
+    for move in moves:
+        tile = s.board[move[0]][move[1]]
+        if (tile + 1) % 2 == player:
+            x_dir = move[0] - pos[0]
+            y_dir = move[1] - pos[1]
+            leap_x = move[0] + x_dir * 2
+            leap_y = move[1] + y_dir * 2
+            if not leap_x < min_x and not leap_x >= max_x \
+                    and not leap_y < min_y and not leap_y >= max_y:
+                leap_tile = s.board[leap_x][leap_y]
+                while leap_tile == 0:
+                    captures.append(leap_tile)
+                    leap_x += x_dir * 2
+                    leap_y += y_dir * 2
+                    if not leap_x < min_x and not leap_x >= max_x \
+                            and not leap_y < min_y and not leap_y >= max_y:
+                        leap_tile = s.board[leap_x][leap_y]
+                    else:
+                        leap_tile = -1
+
+    return captures
+
+
+def gen_coordinator_captures(s, moves, player, pos):
+    """
+    Idk how to do the logistics of how to check the intersection cause various situations and stuff
+    Will think about later
+    """
+    captures = []
+    return captures
+
+
+def gen_freezer_captures(s, moves, player, pos):
+    """
+    Freezers can't capture so return empty list
+    Also, just realized we'll need to re-check the moves and make sure a piece isn't next to a freezer before it moves
+    """
+    captures = []
+    return captures
+
+
+def gen_imitator_captures(s, moves, player, pos):
+    """
+    Get tiles around it, look at what enemy pieces are around it, for each one call that method and add to captures
+    Should be easy to implement
+    """
+    captures = []
+    return captures
+
+
+
 # Move generator functions for different piece types. The key for a piece can
 # be retrieved by taking the piece number (defined at the top of the file) and
 # dividing by 2.
