@@ -78,13 +78,21 @@ def nickname():
 
 
 def makeMove(currentState, currentRemark, timeLimit=10000):
-    state = BC_state(old_board=INITIAL)
-    move = minimax(state)
-    return move
+    move = minimax(currentState)
+
+    return [["Move", move[0]], "Take that!"]
 
 
 def staticEval(state):
-    return 2
+    score = 0
+    for row in state.board:
+        for space in row:
+            if space != 0:
+                if who(space) == BLACK:
+                    score -= 1
+                else:
+                    score += 1
+    return score
 
 
 def minimax(state, curr_ply=0):
@@ -94,13 +102,15 @@ def minimax(state, curr_ply=0):
     returns:
         tuple containing (board_state, value_of_state)
     """
+    def is_better(curr, best, p):
+        return curr < best if p == 0 else curr > best
+
     max_ply = 5
     board = state.board
 
     if curr_ply == max_ply:
         return (state, staticEval(state))
 
-    # Generate board states
     best_val = -9999
     best_state = None
     for row in range(board):
@@ -108,12 +118,16 @@ def minimax(state, curr_ply=0):
             piece = state[row][col]
             new_pos = move_funcs[piece / 2]((col, row))
 
-            new_b = filter_board((col, row), new_pos)
-            next_state = BC_state(new_b, state.whose_move % 1)
-            val = minimax(next_state, curr_ply + 1)[1]
-            if val > best_val:
-                best_val = val
-                best_state = next_state
+            if can_move_funcs[piece / 2]((col, row), new_pos, state):
+                new_b = filter_board((col, row), new_pos)
+                next_state = BC_state(new_b, state.whose_move % 1)
+                val = minimax(next_state, curr_ply + 1)[1]
+                if is_better(val, best_val, state.whose_move):
+                    best_val = val
+                    best_state = next_state
+
+    if best_state is None:
+        return None
 
     return (best_state, best_val)
 
