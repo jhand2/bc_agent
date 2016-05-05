@@ -96,18 +96,34 @@ def move(s, move):
 
 
 def minimax(state, curr_ply=0):
-    ply = 5
-    player = state.whose_move
+    """
+    I don't really think I'm finished with this but its a start.
+
+    returns:
+        tuple containing (board_state, value_of_state)
+    """
+    max_ply = 5
     board = state.board
 
+    if curr_ply == max_ply:
+        return (state, staticEval(state))
+
     # Generate board states
-    new_states = []
+    best_val = -9999
+    best_state = None
     for row in range(board):
         for col in range(row):
             piece = state[row][col]
-            m = move_funcs[piece / 2]((col, row))
+            new_pos = move_funcs[piece / 2]((col, row))
 
-    return [["", []], "Take that!!!"]
+            new_b = filter_board((col, row), new_pos)
+            next_state = BC_state(new_b, state.whose_move % 1)
+            val = minimax(next_state, curr_ply + 1)[1]
+            if val > best_val:
+                best_val = val
+                best_state = next_state
+
+    return (best_state, best_val)
 
 
 class Operator:
@@ -139,6 +155,24 @@ max_x = len(INITIAL[0])
 
 min_y = 0
 max_y = len(INITIAL)
+
+
+def filter_board(start_pos, end_pos, state):
+    """
+    Creates a new board state based on the piece in start_pos being moved to
+    end_pos.
+    """
+    new_b = state.board[:]
+    x1 = start_pos[0]
+    x2 = end_pos[0]
+    y1 = start_pos[1]
+    y2 = end_pos[1]
+
+    new_b[x2][y2] = new_b[x1][y1]
+    new_b[x1][y1] = 0
+
+    new_state = BC_state(old_board=new_b, whose_move=state.whose_move % 1)
+    return new_state
 
 
 # Make operators
