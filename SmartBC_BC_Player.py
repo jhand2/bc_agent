@@ -398,18 +398,43 @@ def most_precond(prev_pos, new_pos, state):
     y2 = new_pos[0]
     x1 = prev_pos[1]
     x2 = new_pos[1]
+    leaper = board[y1][x1] / 2 == 3
+    capture_count = 0
 
     xvals = sorted((x2, x1))
     yvals = sorted((y2, y1))
     if y2 == y1:    # horizontal move
         for space in board[y1][xvals[0] + 1:xvals[1]]:
             if space != 0:
-                return False
+                capture_count += 1
+                if not leaper:
+                    return False
+                elif capture_count > 1:
+                    return False
+
     elif x1 == x2:  # vertical move
         for row in board[yvals[0] + 1:yvals[1]]:
             if row[x1] != 0:
-                return False
-    # else:   # Diagonal move
+                capture_count += 1
+                if not leaper:
+                    return False
+                elif capture_count > 1:
+                    return False
+    else:   # Diagonal move
+        x_dir = new_pos[1] - prev_pos[1]
+        x_dir = x_dir / abs(x_dir)
+        y_dir = new_pos[0] - prev_pos[0]
+        y_dir = y_dir / abs(y_dir)
+        space = (prev_pos[0] + y_dir, prev_pos[1] + x_dir)
+        while space[0] != new_pos[0] and space[1] != new_pos[1]:
+            if board[space[0]][space[1]] != 0:
+                capture_count += 1
+                if not leaper:
+                    return False
+                elif capture_count > 1:
+                    return False
+            space[0] += y_dir
+            space[1] += x_dir
         # temp_x = x1 + 1
         # for row in board[yvals[0] + 1:yvals[1]]:
 
@@ -428,7 +453,15 @@ def all_precond(prev_pos, new_pos, state):
     return prev_pos != new_pos and who(piece) == state.whose_move\
         and who(dest_piece) != state.whose_move
 
-
+"""
+1 = pincer
+2 = coordinator
+3 = leaper
+4 = imitator
+5 = withdrawer
+6 = king
+7 = freezer
+"""
 can_move_funcs = {
     1: "",
     2: "",
