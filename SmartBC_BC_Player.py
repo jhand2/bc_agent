@@ -12,6 +12,8 @@ CODE_TO_INIT = {0: '-', 2: 'p', 3: 'P', 4: 'c', 5: 'C', 6: 'l', 7: 'L', 8: 'i',
 
 def who(piece):
     """Returns the number corresponding to the player owning this piece"""
+    if piece == 0:
+        return -1
     return piece % 2
 
 
@@ -115,7 +117,7 @@ def minimax(state, curr_ply=0):
     returns:
         tuple containing (board_state, value_of_state)
     """
-    max_ply = 1
+    max_ply = 2
     board = state.board
     if curr_ply == max_ply:
         return (state, staticEval(state))
@@ -184,7 +186,8 @@ def filter_board(start_pos, end_pos, state):
     y1 = start_pos[0]
     y2 = end_pos[0]
 
-    new_b[y2][x2] = new_b[y1][x1]
+    piece = new_b[y1][x1]
+    new_b[y2][x2] = piece
     new_b[y1][x1] = 0
 
     return new_b
@@ -290,22 +293,37 @@ def gen_king_captures(s, moves, player):
     return captures
 
 
-def gen_pincer_captures(s, moves, player, pos):
+def pincer_captures(s, move):
     """
     If movable tile contains enemy and tile past enemy is ally, add capture move
     """
     captures = []
-    for move in moves:
-        tile = s.board[move[0]][move[1]]
-        x_dir = move[0] - pos[0]
-        y_dir = move[1] - pos[1]
-        if not (move[0] + x_dir) < min_x and not (move[0] + x_dir) >= max_x \
-                and not (move[1] + y_dir) < min_y and\
-                not (move[1] + y_dir) >= max_y:
-            partner_tile = s.board[move[0] + x_dir][move[1] + y_dir]
-            if (tile + 1) % 2 == player and partner_tile % 2 == player\
-                    and partner_tile != 0:
-                captures.append(move)
+
+    to_test = [
+        [(move[0] - 1, move[1]), (move[0] - 2, move[1])],
+        [(move[0] + 1, move[1]), (move[0] + 2, move[1])],
+        [(move[0], move[1] - 1), (move[0], move[1] - 2)],
+        [(move[0], move[1] + 1), (move[0], move[1] + 2)]
+    ]
+    for pair in to_test:
+        try:
+            one_away = s.board[pair[0][0]][pair[0][1]]
+            two_away = s.board[pair[1][0]][pair[1][1]]
+            if who(two_away) == s.whose_move and\
+                    who(one_away) == 1 - s.whose_move:
+                captures.append(pair[0][0], pair[0][1])
+        except:
+            pass
+    # try:
+        # up = s.board[move[0] - 1][move[1]]
+        # two_up = s.board[move[0] - 2][move[1]]
+        # if who(two_up) == s.whose_move and who(up) == 1 - s.whose_move:
+            # captures.append((move[0] - 1, move[1]))
+    # except:
+        # pass
+    # try:
+        # left = s.board[move[0]][move[1] - 1]
+        # two_left =
     return captures
 
 
@@ -397,6 +415,11 @@ def gen_imitator_captures(s, moves, player, pos):
     return captures
 
 
+cap_dict = {
+    1: pincer_captures
+}
+
+
 # Move generator functions for different piece types. The key for a piece can
 # be retrieved by taking the piece number (defined at the top of the file) and
 # dividing by 2.
@@ -438,7 +461,6 @@ def most_precond(prev_pos, new_pos, state):
                 if (not leaper) or (leaper and capture_count > 1):
                     return False
     elif x1 == x2:  # vertical move
-        # print(str(board[yvals[0] + 1:yvals[1]]))
         for row in board[yvals[0] + 1:yvals[1]]:
             if row[x1] != 0:
                 if who(row[x1]) == state.whose_move:
@@ -467,10 +489,6 @@ def most_precond(prev_pos, new_pos, state):
             space[0] += y_dir
             space[1] += x_dir
 
-    # print(board)
-    # print(prev_pos)
-    # print(new_pos)
-    # print(board[y2][x2] == 0)
     return board[y2][x2] == 0
 
 
@@ -483,7 +501,6 @@ def all_precond(prev_pos, new_pos, state):
     piece = board[y1][x1]
     dest_piece = board[y2][x2]
 
-    # print(who(dest_piece) != state.whose_move)
     if who(piece) == state.whose_move:
         return dest_piece == 0 or who(dest_piece) != state.whose_move
 
