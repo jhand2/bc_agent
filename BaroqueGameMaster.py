@@ -17,8 +17,8 @@ if len(sys.argv) > 1:
     if len(sys.argv) > 3:
         TIME_PER_MOVE = float(sys.argv[3])
 else:
-    import TestAgent1 as player1
-    import TestAgent1 as player2
+    import SmartBC_BC_Player as player1
+    import SmartBC_BC_Player as player2
 
 
 # Specify details of a match here:
@@ -70,6 +70,7 @@ def runGame():
     print(currentState)
     while not FINISHED:
         who = currentState.whose_move
+        side = 'BLACK'
         if who==bcs.WHITE: side = 'WHITE'
         global CURRENT_PLAYER
         CURRENT_PLAYER = who
@@ -122,12 +123,12 @@ def timeout(func, args=(), kwargs={}, timeout_duration=1, default=None):
             threading.Thread.__init__(self)
             self.result = default
         def run(self):
-            try:
-                self.result = func(*args, **kwargs)
-            except:
-                print("Seems there was a problem with the time.")
-                print(sys.exc_info())
-                self.result = default
+            # try:
+            self.result = func(*args, **kwargs)
+            # except:
+                # print("Seems there was a problem with the time.")
+                # print(sys.exc_info())
+                # self.result = default
 
     pt = PlayerThread()
     #print("timeout_duration = "+str(timeout_duration))

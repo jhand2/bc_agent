@@ -60,6 +60,10 @@ class BC_state:
         return s
 
 
+def prepare(nickname):
+    pass
+
+
 def introduce():
     """
     Returns a string that introduces the SmartBC baroque chess agent and
@@ -95,6 +99,15 @@ def staticEval(state):
     return score
 
 
+def is_better(curr, best, p):
+    if curr is None:
+        return False
+    elif best is None:
+        return True
+    else:
+        return curr < best if p == 0 else curr > best
+
+
 def minimax(state, curr_ply=0):
     """
     I don't really think I'm finished with this but its a start.
@@ -102,32 +115,26 @@ def minimax(state, curr_ply=0):
     returns:
         tuple containing (board_state, value_of_state)
     """
-    def is_better(curr, best, p):
-        return curr < best if p == 0 else curr > best
-
-    max_ply = 5
+    max_ply = 1
     board = state.board
-
     if curr_ply == max_ply:
         return (state, staticEval(state))
 
-    best_val = -9999
+    best_val = None
     best_state = None
-    for row in range(board):
-        for col in range(row):
-            piece = state[row][col]
-            new_pos = move_funcs[piece / 2]((col, row))
-
-            if can_move_funcs[piece / 2]((col, row), new_pos, state):
-                new_b = filter_board((col, row), new_pos)
-                next_state = BC_state(new_b, state.whose_move % 1)
-                val = minimax(next_state, curr_ply + 1)[1]
-                if is_better(val, best_val, state.whose_move):
-                    best_val = val
-                    best_state = next_state
-
-    if best_state is None:
-        return None
+    for row in range(len(board)):
+        for col in range(len(board[0])):
+            piece = board[row][col]
+            if piece != 0:
+                moves = move_funcs[piece // 2]((row, col))
+                for m in moves:
+                    if can_move_funcs[piece // 2]((row, col), m, state):
+                        new_b = filter_board((row, col), m, state)
+                        next_state = BC_state(new_b, 1 - state.whose_move)
+                        val = minimax(next_state, curr_ply + 1)[1]
+                        if is_better(val, best_val, state.whose_move):
+                            best_val = val
+                            best_state = next_state
 
     return (best_state, best_val)
 
@@ -168,17 +175,19 @@ def filter_board(start_pos, end_pos, state):
     Creates a new board state based on the piece in start_pos being moved to
     end_pos.
     """
-    new_b = state.board[:]
-    x1 = start_pos[0]
-    x2 = end_pos[0]
-    y1 = start_pos[1]
-    y2 = end_pos[1]
+    new_b = []
+    for row in state.board:
+        r = row[:]
+        new_b.append(r)
+    x1 = start_pos[1]
+    x2 = end_pos[1]
+    y1 = start_pos[0]
+    y2 = end_pos[0]
 
-    new_b[x2][y2] = new_b[x1][y1]
-    new_b[x1][y1] = 0
+    new_b[y2][x2] = new_b[y1][x1]
+    new_b[y1][x1] = 0
 
-    new_state = BC_state(old_board=new_b, whose_move=state.whose_move % 1)
-    return new_state
+    return new_b
 
 # --------------
 # Make operators
@@ -210,14 +219,13 @@ def gen_four_cardinal(pos, x_extrema, y_extrema):
     x_extrema[0] <= x < x_extrema[1] and y_extrema[0] <= y < x_extrema[1]
     """
     moves = []
-
     for i in range(x_extrema[0], x_extrema[1]):
-        if i != pos[0]:
-            m = (i, pos[1])
+        if i != pos[1]:
+            m = (pos[0], i)
             moves.append(m)
     for j in range(y_extrema[0], y_extrema[1]):
-        if j != pos[1]:
-            m = (pos[0], j)
+        if j != pos[0]:
+            m = (j, pos[1])
             moves.append(m)
 
     return moves
@@ -233,18 +241,18 @@ def gen_four_diag(pos, x_extrema, y_extrema):
 
     i = x_extrema[0]
     j = y_extrema[0]
-    while i < max_x and j < max_y:
-        if i != pos[0] and j != pos[1]:
-            m = (i, j)
+    while i < x_extrema[1] and j < y_extrema[1]:
+        if i != pos[1] and j != pos[0]:
+            m = (j, i)
             moves.append(m)
         i += 1
         j += 1
 
     i = x_extrema[0]
-    j = y_extrema[1]
-    while i < max_x and j >= min_y:
-        if i != pos[0] and j != pos[1]:
-            m = (i, j)
+    j = y_extrema[1] - 1
+    while i < x_extrema[1] and j >= y_extrema[0]:
+        if i != pos[1] and j != pos[0]:
+            m = (j, i)
             moves.append(m)
         i += 1
         j -= 1
@@ -258,10 +266,10 @@ def gen_king_moves(pos):
     """
     moves = []
 
-    minx = pos[0] - 1 if pos[0] > min_x else pos[0]
-    maxx = pos[0] + 1 if pos[0] < max_x - 1 else pos[0]
-    miny = pos[1] - 1 if pos[1] > min_y else pos[1]
-    maxy = pos[1] + 1 if pos[1] < max_y else pos[1]
+    minx = pos[1] - 1 if pos[1] > min_x else pos[1]
+    maxx = pos[1] + 1 if pos[1] < max_x - 1 else pos[1]
+    miny = pos[0] - 1 if pos[0] > min_y else pos[0]
+    maxy = pos[0] + 1 if pos[0] < max_y else pos[0]
 
     moves += gen_four_cardinal(pos, (minx, maxx), (miny, maxy))
     moves += gen_four_diag(pos, (minx, maxx), (miny, maxy))
@@ -407,12 +415,15 @@ def most_precond(prev_pos, new_pos, state):
     """
     Precondition piece for all pieces but the king.
     """
+    if not all_precond(prev_pos, new_pos, state):
+        return False
+
     board = state.board
     y1 = prev_pos[0]
     y2 = new_pos[0]
     x1 = prev_pos[1]
     x2 = new_pos[1]
-    leaper = board[y1][x1] / 2 == 3
+    leaper = board[y1][x1] // 2 == 3
     capture_count = 0
 
     xvals = sorted((x2, x1))
@@ -420,52 +431,61 @@ def most_precond(prev_pos, new_pos, state):
     if y2 == y1:    # horizontal move
         for space in board[y1][xvals[0] + 1:xvals[1]]:
             if space != 0:
-                capture_count += 1
-                if not leaper:
+                if who(space) == state.whose_move:
                     return False
-                elif capture_count > 1:
+                else:
+                    capture_count += 1
+                if (not leaper) or (leaper and capture_count > 1):
                     return False
-
     elif x1 == x2:  # vertical move
+        # print(str(board[yvals[0] + 1:yvals[1]]))
         for row in board[yvals[0] + 1:yvals[1]]:
             if row[x1] != 0:
-                capture_count += 1
-                if not leaper:
+                if who(row[x1]) == state.whose_move:
                     return False
-                elif capture_count > 1:
+                else:
+                    capture_count += 1
+                if (not leaper) or (leaper and capture_count > 1):
                     return False
     else:   # Diagonal move
+        if abs(x1 - x2) != abs(y1 - y2):
+            return False
         x_dir = new_pos[1] - prev_pos[1]
-        x_dir = x_dir / abs(x_dir)
+        x_dir = x_dir // abs(x_dir)
+
         y_dir = new_pos[0] - prev_pos[0]
-        y_dir = y_dir / abs(y_dir)
-        space = (prev_pos[0] + y_dir, prev_pos[1] + x_dir)
+        y_dir = y_dir // abs(y_dir)
+        space = [prev_pos[0] + y_dir, prev_pos[1] + x_dir]
         while space[0] != new_pos[0] and space[1] != new_pos[1]:
             if board[space[0]][space[1]] != 0:
-                capture_count += 1
-                if not leaper:
+                if who(board[space[0]][space[1]]) == state.whose_move:
                     return False
-                elif capture_count > 1:
+                else:
+                    capture_count += 1
+                if not leaper or (leaper and capture_count > 1):
                     return False
             space[0] += y_dir
             space[1] += x_dir
-        # temp_x = x1 + 1
-        # for row in board[yvals[0] + 1:yvals[1]]:
 
+    # print(board)
+    # print(prev_pos)
+    # print(new_pos)
+    # print(board[y2][x2] == 0)
     return board[y2][x2] == 0
 
 
 def all_precond(prev_pos, new_pos, state):
     board = state.board
     x1 = prev_pos[1]
-    y1 = new_pos[1]
-    x2 = prev_pos[0]
+    x2 = new_pos[1]
+    y1 = prev_pos[0]
     y2 = new_pos[0]
     piece = board[y1][x1]
     dest_piece = board[y2][x2]
 
-    return prev_pos != new_pos and who(piece) == state.whose_move\
-        and who(dest_piece) != state.whose_move
+    # print(who(dest_piece) != state.whose_move)
+    if who(piece) == state.whose_move:
+        return dest_piece == 0 or who(dest_piece) != state.whose_move
 
 """
 1 = pincer
@@ -477,11 +497,11 @@ def all_precond(prev_pos, new_pos, state):
 7 = freezer
 """
 can_move_funcs = {
-    1: "",
-    2: "",
-    3: "",
-    4: "",
-    5: "",
-    6: lambda prev, new, st: all_precond(prev, new, st),
-    7: ""
+    1: most_precond,
+    2: most_precond,
+    3: most_precond,
+    4: most_precond,
+    5: most_precond,
+    6: all_precond,
+    7: most_precond
 }

@@ -10,6 +10,7 @@ import random
 def makeMove(currentState, currentRemark, timelimit):
     newMoveDesc = 'No move'
     newRemark = "I don't even know how to move!"
+    currentState.whose_move = 1 - currentState.whose_move
     return [[newMoveDesc, currentState], newRemark]
 
 def nickname():
