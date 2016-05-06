@@ -1,5 +1,10 @@
+import time
+import random as rand
+# import bcs
+
 BLACK = 0
 WHITE = 1
+S_TIME = 0
 
 # Numeric codes for each BC piece
 INIT_TO_CODE = {'p': 2, 'P': 3, 'c': 4, 'C': 5, 'l': 6, 'L': 7, 'i': 8, 'I': 9,
@@ -84,9 +89,22 @@ def nickname():
 
 
 def makeMove(currentState, currentRemark, timeLimit=10000):
+    global S_TIME
+    S_TIME = time.time()
     move = minimax(currentState)
 
     return [["Move", move[0]], "Take that!"]
+
+
+weights = {
+    1: 1,
+    2: 5,
+    3: 3,
+    4: 3,
+    5: 9,
+    6: 200,
+    7: 5
+}
 
 
 def staticEval(state):
@@ -95,9 +113,9 @@ def staticEval(state):
         for space in row:
             if space != 0:
                 if who(space) == BLACK:
-                    score -= 1
+                    score -= (weights[space // 2] * (space // 2))
                 else:
-                    score += 1
+                    score += (weights[space // 2] * (space // 2))
     return score
 
 
@@ -117,13 +135,19 @@ def minimax(state, curr_ply=0):
     returns:
         tuple containing (board_state, value_of_state)
     """
+    # Elapsed time from start of search
+    # t = time.time() - S_TIME
+    r = True
+
     max_ply = 2
     board = state.board
-    if curr_ply == max_ply:
-        return (state, staticEval(state))
 
-    best_val = None
-    best_state = None
+    if curr_ply == max_ply:
+        se = staticEval(state)
+        return (state, se)
+
+    states = []
+    # Iterates through the whole board
     for row in range(len(board)):
         for col in range(len(board[0])):
             piece = board[row][col]
@@ -131,14 +155,31 @@ def minimax(state, curr_ply=0):
                 moves = move_funcs[piece // 2]((row, col))
                 for m in moves:
                     if can_move_funcs[piece // 2]((row, col), m, state):
+
                         new_b = filter_board((row, col), m, state)
                         next_state = BC_state(new_b, 1 - state.whose_move)
-                        val = minimax(next_state, curr_ply + 1)[1]
-                        if is_better(val, best_val, state.whose_move):
-                            best_val = val
-                            best_state = next_state
+                        states.append(next_state)
+
+    if r:
+        new_s = rand.choice(states)
+        return (new_s, 0)
+    else:
+        best_val = None
+        best_state = None
+        for s in states:
+            val = minimax(s, curr_ply + 1)[1]
+            if is_better(val, best_val, state.whose_move):
+                best_val = val
+                best_state = next_state
 
     return (best_state, best_val)
+
+
+# def diff()
+
+
+def get_elapsed():
+    return time.time() - S_TIME
 
 
 class Operator:
@@ -189,6 +230,12 @@ def filter_board(start_pos, end_pos, state):
     piece = new_b[y1][x1]
     new_b[y2][x2] = piece
     new_b[y1][x1] = 0
+    try:
+        captures = cap_dict[piece // 2]
+        for c in captures:
+            new_b[c[0]][c[1]] = 0
+    except:
+        pass
 
     return new_b
 
@@ -280,20 +327,20 @@ def gen_king_moves(pos):
     return moves
 
 
-def gen_king_captures(s, moves, player):
+def king_captures(s, move, pos):
     """
     If movable tile contains enemy, add capture move
     Black = 0 (evens), White = 1 (odds)
     """
     captures = []
-    for move in moves:
-        tile = s.board[move[0]][move[1]]
-        if (tile + 1) % 2 == player and tile != 0:
-            captures.append(move)
+    tile = s.board[move[0]][move[1]]
+    if who(tile) != s.whose_move and tile != 0:
+        captures.append(move)
+
     return captures
 
 
-def pincer_captures(s, move):
+def pincer_captures(s, move, pos):
     """
     If movable tile contains enemy and tile past enemy is ally, add capture move
     """
@@ -314,109 +361,133 @@ def pincer_captures(s, move):
                 captures.append(pair[0][0], pair[0][1])
         except:
             pass
-    # try:
-        # up = s.board[move[0] - 1][move[1]]
-        # two_up = s.board[move[0] - 2][move[1]]
-        # if who(two_up) == s.whose_move and who(up) == 1 - s.whose_move:
-            # captures.append((move[0] - 1, move[1]))
-    # except:
-        # pass
-    # try:
-        # left = s.board[move[0]][move[1] - 1]
-        # two_left =
     return captures
 
 
-def gen_withdrawer_captures(s, moves, player, pos):
+def withdrawer_captures(s, move, pos):
     """
     If movable tile contains enemy and any tile away from enemy is empty,
     add capture move
     """
     captures = []
-    for move in moves:
-        tile = s.board[move[0]][move[1]]
-        if (tile + 1) % 2 == player:
-            x_dir = move[0] - pos[0]
-            y_dir = move[1] - pos[1]
-            withdraw_x = pos[0] - x_dir
-            withdraw_y = pos[1] - y_dir
-            if not withdraw_x < min_x and not withdraw_x >= max_x \
-                    and not withdraw_y < min_y and not withdraw_y >= max_y:
-                withdraw_tile = s.board[withdraw_x][withdraw_y]
-                while withdraw_tile == 0:
-                    captures.append(withdraw_tile)
-                    withdraw_x -= x_dir
-                    withdraw_y -= y_dir
-                    if not withdraw_x < min_x and not withdraw_x >= max_x \
-                            and not withdraw_y < min_y\
-                            and not withdraw_y >= max_y:
-                        withdraw_tile = s.board[withdraw_x][withdraw_y]
-                    else:
-                        withdraw_tile = -1
+
+    enemy_positions = get_surrounding(s, pos)
+    for enemy in enemy_positions:
+        if in_line(enemy, move):
+            captures.append(enemy)
+
     return captures
 
 
-def gen_leaper_captures(s, moves, player, pos):
+def get_surrounding(s, pos):
+    spaces = []
+    for i in (-1, 0, 1):
+        for j in (-1, 0, 1):
+            if not (i == j == 0):
+                if 0 <= pos[0] + i < 8 and 0 <= pos[1] + j < 8:
+                    spaces.append((pos[0] + i, pos[1] + j))
+    return spaces
+
+
+def in_line(p1, p2):
+    cardinal = p1[0] == p2[0] or p1[1] == p2[1]
+    slope = (p1[0] - p2[0]) / (p1[1] - p2[1])
+    diag = slope == 1 or slope == -1
+
+    return cardinal or diag
+
+
+def get_line(s, p1, p2):
+    pieces = []
+    board = s.board
+    xvals = sorted((x2, x1))
+    yvals = sorted((y2, y1))
+    if y2 == y1:    # horizontal move
+        for space in board[y1][xvals[0] + 1:xvals[1]]:
+            if space != 0:
+                pieces.append((y1, space))
+    elif x1 == x2:  # vertical move
+        for row in board[yvals[0] + 1:yvals[1]]:
+            if row[x1] != 0:
+                pieces.append((y1, space))
+    else:   # Diagonal move
+        if abs(x1 - x2) != abs(y1 - y2):
+            return False
+        x_dir = new_pos[1] - prev_pos[1]
+        x_dir = x_dir // abs(x_dir)
+
+        y_dir = new_pos[0] - prev_pos[0]
+        y_dir = y_dir // abs(y_dir)
+        space = [prev_pos[0] + y_dir, prev_pos[1] + x_dir]
+        while space[0] != new_pos[0] and space[1] != new_pos[1]:
+            if board[space[0]][space[1]] != 0:
+                pieces.append((y1, space))
+            space[0] += y_dir
+            space[1] += x_dir
+
+
+def leaper_captures(s, move, pos):
     """
     If movable tile contains enemy, add all tiles after it until you reach end
     of board or reach non-blank tile
     """
-    captures = []
-    for move in moves:
-        tile = s.board[move[0]][move[1]]
-        if (tile + 1) % 2 == player:
-            x_dir = move[0] - pos[0]
-            y_dir = move[1] - pos[1]
-            leap_x = move[0] + x_dir * 2
-            leap_y = move[1] + y_dir * 2
-            if not leap_x < min_x and not leap_x >= max_x \
-                    and not leap_y < min_y and not leap_y >= max_y:
-                leap_tile = s.board[leap_x][leap_y]
-                while leap_tile == 0:
-                    captures.append(leap_tile)
-                    leap_x += x_dir * 2
-                    leap_y += y_dir * 2
-                    if not leap_x < min_x and not leap_x >= max_x \
-                            and not leap_y < min_y and not leap_y >= max_y:
-                        leap_tile = s.board[leap_x][leap_y]
-                    else:
-                        leap_tile = -1
+    captures = get_line(s, move, pos)
+    # tile = s.board[move[0]][move[1]]
+    # while leap_tile == 0:
+        # captures.append(leap_tile)
+        # leap_x += x_dir * 2
+        # leap_y += y_dir * 2
+        # if not leap_x < min_x and not leap_x >= max_x \
+                # and not leap_y < min_y and not leap_y >= max_y:
+            # leap_tile = s.board[leap_x][leap_y]
+        # else:
+            # leap_tile = -1
 
     return captures
 
 
-def gen_coordinator_captures(s, moves, player, pos):
+def coordinator_captures(s, moves, player, pos):
     """
     Idk how to do the logistics of how to check the intersection cause various
     situations and stuff
     Will think about later
     """
     captures = []
+    king = 12
+    if s.whose_move == 1:
+        king = 13
     return captures
 
 
-def gen_freezer_captures(s, moves, player, pos):
-    """
-    Freezers can't capture so return empty list
-    Also, just realized we'll need to re-check the moves and make sure a piece
-    isn't next to a freezer before it moves
-    """
-    captures = []
-    return captures
-
-
-def gen_imitator_captures(s, moves, player, pos):
+def imitator_captures(s, move, pos):
     """
     Get tiles around it, look at what enemy pieces are around it, for each one
     call that method and add to captures.
     Should be easy to implement
     """
     captures = []
+    adj = get_surrounding(s, pos)
+    # for space in adj:
     return captures
 
 
+"""
+1 = pincer
+2 = coordinator
+3 = leaper
+4 = imitator
+5 = withdrawer
+6 = king
+7 = freezer
+"""
 cap_dict = {
-    1: pincer_captures
+    1: pincer_captures,
+    2: coordinator_captures,
+    3: leaper_captures,
+    4: imitator_captures,
+    5: withdrawer_captures,
+    6: king_captures,
+    7: lambda s, m, pos: []
 }
 
 
@@ -501,8 +572,10 @@ def all_precond(prev_pos, new_pos, state):
     piece = board[y1][x1]
     dest_piece = board[y2][x2]
 
-    if who(piece) == state.whose_move:
-        return dest_piece == 0 or who(dest_piece) != state.whose_move
+    has_piece = who(piece) == state.whose_move
+    space_avail = dest_piece == 0 or who(dest_piece) != state.whose_move
+    pos_diff = not (prev_pos[0] == new_pos[0] and prev_pos[1] == new_pos[1])
+    return has_piece and space_avail and pos_diff
 
 """
 1 = pincer

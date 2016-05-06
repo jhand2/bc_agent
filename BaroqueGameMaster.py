@@ -89,6 +89,7 @@ def runGame():
             legal_states = bcs.successors(currentState)
             if not OCCURS_IN(moveAndState[1], legal_states):
                 print("Illegal move by "+side)  # Returned state is:\n" + str(currentState))
+                currentState = moveAndState[1]
                 break
         move, currentState = moveAndState
         side = 'BLACK'
@@ -107,6 +108,9 @@ def runGame():
         turnCount += 1
         #if turnCount == 9: FINISHED=True
     print(currentState)
+    # for s in legal_states:
+        # print("")
+        # print(s)
     who = currentState.whose_move
     print("Game over.")
 
