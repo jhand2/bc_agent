@@ -109,11 +109,30 @@ weights = {
 
 def staticEval(state):
     score = 0
+    y = -1
     for row in state.board:
+        y += 1
+        x = -1
         for space in row:
+            x += 1
             if space != 0:
                 if who(space) == BLACK:
                     score -= (weights[space // 2] * (space // 2))
+                    # Points depending on where king is on board, good on same side, bad on other side
+                    if space == 12:
+                        score += (min_y + y) * .1
+                    # More for each thing frozen by freezer
+                    if space == 14:
+                        for adj in get_surrounding(state, [y,x]):
+                            if who(space) == WHITE:
+                                score -= (weights[adj // 2]) * .1
+                    # Other ideas:
+                    # If coordinator in same col or row as king, minus some points (will probably need to track king)
+                #     If piece cant move, minus some points
+                #     Add weighted points for each possible capture a piece can do
+                #     Add points just based on the number of legal moves compared to opponent
+
+
                 else:
                     score += (weights[space // 2] * (space // 2))
     return score
@@ -330,7 +349,6 @@ def gen_king_moves(pos):
 def king_captures(s, move, pos):
     """
     If movable tile contains enemy, add capture move
-    Black = 0 (evens), White = 1 (odds)
     """
     captures = []
     tile = s.board[move[0]][move[1]]
