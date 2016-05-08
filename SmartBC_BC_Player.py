@@ -107,6 +107,14 @@ weights = {
 }
 
 
+def getKing(s, player):
+    for row in range(len(s.board)):
+        for col in range(len(s.board[0])):
+            piece = s.board[row][col]
+            if piece == 12 + player:
+                return [row, col]
+
+
 def staticEval(state):
     score = 0
     y = -1
@@ -126,13 +134,16 @@ def staticEval(state):
                         for adj in get_surrounding(state, [y,x]):
                             if who(space) == WHITE:
                                 score -= (weights[adj // 2]) * .1
-                    # Other ideas:
-                    # If coordinator in same col or row as king, minus some points (will probably need to track king)
+                    # If coordinator in same col or row as king, minus some points
+                    if space == 4:
+                        king_pos = getKing(state, who(space))
+                        if y == king_pos[0] or x == king_pos[1]:
+                            score += (weights[space] + weights[6]) * .1
+                # Other ideas:
                 #     If piece cant move, minus some points
                 #     Add weighted points for each possible capture a piece can do
                 #     Add points just based on the number of legal moves compared to opponent
-
-
+                    score -= len(move_funcs[space // 2]((y,x))) * .01
                 else:
                     score += (weights[space // 2] * (space // 2))
     return score
@@ -391,9 +402,60 @@ def withdrawer_captures(s, move, pos):
 
     enemy_positions = get_surrounding(s, pos)
     for enemy in enemy_positions:
-        if in_line(enemy, move):
+        if who(enemy) != s.whose_move and enemy != 0 and in_line(enemy, move):
             captures.append(enemy)
 
+    return captures
+
+
+def leaper_captures(s, move, pos):
+    """
+    If movable tile contains enemy, add all tiles after it until you reach end
+    of board or reach non-blank tile
+    """
+    captures = get_line(s, move, pos)
+    # tile = s.board[move[0]][move[1]]
+    # while leap_tile == 0:
+        # captures.append(leap_tile)
+        # leap_x += x_dir * 2
+        # leap_y += y_dir * 2
+        # if not leap_x < min_x and not leap_x >= max_x \
+                # and not leap_y < min_y and not leap_y >= max_y:
+            # leap_tile = s.board[leap_x][leap_y]
+        # else:
+            # leap_tile = -1
+
+    return captures
+
+
+def coordinator_captures(s, move, player):
+    """
+    Idk how to do the logistics of how to check the intersection cause various
+    situations and stuff
+    Will think about later
+    """
+    captures = []
+    king = getKing(s, player)
+    corner1 = s.board[move[0]][king[1]]
+    corner2 = s.board[move[1]][king[0]]
+    if who(corner1) != s.whose_move and corner1 != 0:
+        captures.append(corner1)
+    if who(corner2) != s.whose_move and corner2 != 0:
+        captures.append(corner2)
+    return captures
+
+
+def imitator_captures(s, move, pos):
+    """
+    Get tiles around it, look at what enemy pieces are around it, for each one
+    call that method and add to captures.
+    Should be easy to implement
+    """
+    captures = []
+    adj = get_surrounding(s, pos)
+    for space in adj:
+        if space % 2 == s.whose_move and space != 0:
+            captures.append(cap_dict[space // 2])
     return captures
 
 
@@ -442,52 +504,6 @@ def get_line(s, p1, p2):
                 pieces.append((y1, space))
             space[0] += y_dir
             space[1] += x_dir
-
-
-def leaper_captures(s, move, pos):
-    """
-    If movable tile contains enemy, add all tiles after it until you reach end
-    of board or reach non-blank tile
-    """
-    captures = get_line(s, move, pos)
-    # tile = s.board[move[0]][move[1]]
-    # while leap_tile == 0:
-        # captures.append(leap_tile)
-        # leap_x += x_dir * 2
-        # leap_y += y_dir * 2
-        # if not leap_x < min_x and not leap_x >= max_x \
-                # and not leap_y < min_y and not leap_y >= max_y:
-            # leap_tile = s.board[leap_x][leap_y]
-        # else:
-            # leap_tile = -1
-
-    return captures
-
-
-def coordinator_captures(s, moves, player, pos):
-    """
-    Idk how to do the logistics of how to check the intersection cause various
-    situations and stuff
-    Will think about later
-    """
-    captures = []
-    king = 12
-    if s.whose_move == 1:
-        king = 13
-    return captures
-
-
-def imitator_captures(s, move, pos):
-    """
-    Get tiles around it, look at what enemy pieces are around it, for each one
-    call that method and add to captures.
-    Should be easy to implement
-    """
-    captures = []
-    adj = get_surrounding(s, pos)
-    # for space in adj:
-    return captures
-
 
 """
 1 = pincer
