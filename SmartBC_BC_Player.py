@@ -230,12 +230,9 @@ def filter_board(start_pos, end_pos, state):
     piece = new_b[y1][x1]
     new_b[y2][x2] = piece
     new_b[y1][x1] = 0
-    try:
-        captures = cap_dict[piece // 2]
-        for c in captures:
-            new_b[c[0]][c[1]] = 0
-    except:
-        pass
+    captures = cap_dict[piece // 2](state, end_pos, start_pos)
+    for c in captures:
+        new_b[c[0]][c[1]] = 0
 
     return new_b
 
@@ -391,39 +388,45 @@ def get_surrounding(s, pos):
 
 def in_line(p1, p2):
     cardinal = p1[0] == p2[0] or p1[1] == p2[1]
-    slope = (p1[0] - p2[0]) / (p1[1] - p2[1])
-    diag = slope == 1 or slope == -1
-
-    return cardinal or diag
+    if cardinal:
+        return True
+    else:
+        slope = (p1[0] - p2[0]) / (p1[1] - p2[1])
+        return slope == 1 or slope == -1
 
 
 def get_line(s, p1, p2):
     pieces = []
     board = s.board
-    xvals = sorted((x2, x1))
-    yvals = sorted((y2, y1))
-    if y2 == y1:    # horizontal move
-        for space in board[y1][xvals[0] + 1:xvals[1]]:
-            if space != 0:
-                pieces.append((y1, space))
+    x1, x2 = p1[1], p2[1]
+    y1, y2 = p1[0], p2[0]
+
+
+    xvals = sorted((y1, y2))
+    yvals = sorted((x1, x2))
+    if y1 == y2:    # horizontal move
+        for x in range(xvals[0] + 1, xvals[1]):
+            if board[y1][x] != 0:
+                pieces.append((y1, x))
     elif x1 == x2:  # vertical move
-        for row in board[yvals[0] + 1:yvals[1]]:
-            if row[x1] != 0:
-                pieces.append((y1, space))
+        for y in range(yvals[0] + 1, yvals[1]):
+            if board[y][x1] != 0:
+                pieces.append((y, x1))
     else:   # Diagonal move
         if abs(x1 - x2) != abs(y1 - y2):
             return False
-        x_dir = new_pos[1] - prev_pos[1]
+        x_dir = p2[1] - p1[1]
         x_dir = x_dir // abs(x_dir)
 
-        y_dir = new_pos[0] - prev_pos[0]
+        y_dir = p2[0] - p1[0]
         y_dir = y_dir // abs(y_dir)
-        space = [prev_pos[0] + y_dir, prev_pos[1] + x_dir]
-        while space[0] != new_pos[0] and space[1] != new_pos[1]:
+        space = [p1[0] + y_dir, p1[1] + x_dir]
+        while space[0] != p2[0] and space[1] != p2[1]:
             if board[space[0]][space[1]] != 0:
-                pieces.append((y1, space))
+                pieces.append((space[0], space[1]))
             space[0] += y_dir
             space[1] += x_dir
+    return pieces
 
 
 def leaper_captures(s, move, pos):
@@ -432,21 +435,11 @@ def leaper_captures(s, move, pos):
     of board or reach non-blank tile
     """
     captures = get_line(s, move, pos)
-    # tile = s.board[move[0]][move[1]]
-    # while leap_tile == 0:
-        # captures.append(leap_tile)
-        # leap_x += x_dir * 2
-        # leap_y += y_dir * 2
-        # if not leap_x < min_x and not leap_x >= max_x \
-                # and not leap_y < min_y and not leap_y >= max_y:
-            # leap_tile = s.board[leap_x][leap_y]
-        # else:
-            # leap_tile = -1
 
     return captures
 
 
-def coordinator_captures(s, moves, player, pos):
+def coordinator_captures(s, move, pos):
     """
     Idk how to do the logistics of how to check the intersection cause various
     situations and stuff
@@ -456,6 +449,20 @@ def coordinator_captures(s, moves, player, pos):
     king = 12
     if s.whose_move == 1:
         king = 13
+    k_space = None
+    try:
+        for row in s.board:
+            i = row.index(king)
+            k_space = (row, i)
+        if k_space is not None:
+            s1 = (k_space[0], move[1])
+            s2 = (move[0], k_space[1])
+            for s in (s1, s2):
+                piece = s.board[s[0]][s[1]]
+                if piece != 0 and who(piece) != s.whose_move:
+                    captures.append(s)
+    except:
+        pass
     return captures
 
 
@@ -467,7 +474,10 @@ def imitator_captures(s, move, pos):
     """
     captures = []
     adj = get_surrounding(s, pos)
-    # for space in adj:
+    for space in adj:
+        piece = s.board[space[0]][space[1]]
+        if piece != 0 and who(piece) != s.whose_move:
+            captures += cap_dict[piece // 2](s, move, pos)
     return captures
 
 
@@ -520,45 +530,59 @@ def most_precond(prev_pos, new_pos, state):
     leaper = board[y1][x1] // 2 == 3
     capture_count = 0
 
-    xvals = sorted((x2, x1))
-    yvals = sorted((y2, y1))
-    if y2 == y1:    # horizontal move
-        for space in board[y1][xvals[0] + 1:xvals[1]]:
-            if space != 0:
+    if in_line(prev_pos, new_pos):
+        spaces = get_line(state, prev_pos, new_pos)
+        capture_count = 0
+
+        for s in spaces:
+            piece = board[s[0]][s[1]]
+            if piece == 0:
                 if who(space) == state.whose_move:
                     return False
                 else:
                     capture_count += 1
                 if (not leaper) or (leaper and capture_count > 1):
                     return False
-    elif x1 == x2:  # vertical move
-        for row in board[yvals[0] + 1:yvals[1]]:
-            if row[x1] != 0:
-                if who(row[x1]) == state.whose_move:
-                    return False
-                else:
-                    capture_count += 1
-                if (not leaper) or (leaper and capture_count > 1):
-                    return False
-    else:   # Diagonal move
-        if abs(x1 - x2) != abs(y1 - y2):
-            return False
-        x_dir = new_pos[1] - prev_pos[1]
-        x_dir = x_dir // abs(x_dir)
 
-        y_dir = new_pos[0] - prev_pos[0]
-        y_dir = y_dir // abs(y_dir)
-        space = [prev_pos[0] + y_dir, prev_pos[1] + x_dir]
-        while space[0] != new_pos[0] and space[1] != new_pos[1]:
-            if board[space[0]][space[1]] != 0:
-                if who(board[space[0]][space[1]]) == state.whose_move:
-                    return False
-                else:
-                    capture_count += 1
-                if not leaper or (leaper and capture_count > 1):
-                    return False
-            space[0] += y_dir
-            space[1] += x_dir
+    # xvals = sorted((x2, x1))
+    # yvals = sorted((y2, y1))
+    # if y2 == y1:    # horizontal move
+        # for space in board[y1][xvals[0] + 1:xvals[1]]:
+            # if space != 0:
+                # if who(space) == state.whose_move:
+                    # return False
+                # else:
+                    # capture_count += 1
+                # if (not leaper) or (leaper and capture_count > 1):
+                    # return False
+    # elif x1 == x2:  # vertical move
+        # for row in board[yvals[0] + 1:yvals[1]]:
+            # if row[x1] != 0:
+                # if who(row[x1]) == state.whose_move:
+                    # return False
+                # else:
+                    # capture_count += 1
+                # if (not leaper) or (leaper and capture_count > 1):
+                    # return False
+    # else:   # Diagonal move
+        # if abs(x1 - x2) != abs(y1 - y2):
+            # return False
+        # x_dir = new_pos[1] - prev_pos[1]
+        # x_dir = x_dir // abs(x_dir)
+
+        # y_dir = new_pos[0] - prev_pos[0]
+        # y_dir = y_dir // abs(y_dir)
+        # space = [prev_pos[0] + y_dir, prev_pos[1] + x_dir]
+        # while space[0] != new_pos[0] and space[1] != new_pos[1]:
+            # if board[space[0]][space[1]] != 0:
+                # if who(board[space[0]][space[1]]) == state.whose_move:
+                    # return False
+                # else:
+                    # capture_count += 1
+                # if not leaper or (leaper and capture_count > 1):
+                    # return False
+            # space[0] += y_dir
+            # space[1] += x_dir
 
     return board[y2][x2] == 0
 
@@ -575,6 +599,13 @@ def all_precond(prev_pos, new_pos, state):
     has_piece = who(piece) == state.whose_move
     space_avail = dest_piece == 0 or who(dest_piece) != state.whose_move
     pos_diff = not (prev_pos[0] == new_pos[0] and prev_pos[1] == new_pos[1])
+
+    adj = get_surrounding(state, prev_pos)
+    for space in adj:
+        piece = board[space[0]][space[1]]
+        if piece // 2 == 7 and who(piece) != state.whose_move:
+            return False
+
     return has_piece and space_avail and pos_diff
 
 """
