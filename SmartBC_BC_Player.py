@@ -76,7 +76,6 @@ def introduce():
     Returns a string that introduces the SmartBC baroque chess agent and
     its benevolent creators.
     """
-
     msg =\
         """Hi my name is SmartBC. My creators are Kevin Fong (kfong94) and Jordan
         Hand (jhand1). I is smart."""
@@ -86,14 +85,6 @@ def introduce():
 def nickname():
     """Returns the nickname of this baroque chess agent."""
     return "SmartBC"
-
-
-def makeMove(currentState, currentRemark, timeLimit=10000):
-    global S_TIME
-    S_TIME = time.time()
-    move = minimax(currentState)
-
-    return [["Move", move[0]], "Take that!"]
 
 
 weights = {
@@ -107,19 +98,55 @@ weights = {
 }
 
 
+def getKing(s, player):
+    for row in range(len(s.board)):
+        for col in range(len(s.board[0])):
+            piece = s.board[row][col]
+            if piece == 12 + player:
+                return [row, col]
+
+
 def staticEval(state):
     score = 0
+    y = -1
     for row in state.board:
+        y += 1
+        x = -1
         for space in row:
+            mult = 1 if who(space) == 1 else -1
+            x += 1
             if space != 0:
-                if who(space) == BLACK:
-                    score -= (weights[space // 2] * (space // 2))
-                else:
-                    score += (weights[space // 2] * (space // 2))
+                score += mult * (weights[space // 2] * (space // 2))
+                if space // 2 == 6:
+                    # Points depending on where king is on board,
+                    # good on same side, bad on other side
+                    score += ((min_y + y) * .1) * mult
+
+                    # More for each thing frozen by freezer
+                    if space // 2 == 7:
+                        for adj in get_surrounding(state, [y,x]):
+                            if who(space) == WHITE:
+                                piece = state.board[adj[0]][adj[1]]
+                                score += mult * ((weights[piece // 2]) * .3)
+
+                    # If coordinator in same col or row as king, minus some points
+                    if space // 2 == 2:
+                        king_pos = getKing(state, who(space))
+                        if y == king_pos[0] or x == king_pos[1]:
+                            score -= mult * (weights[2] * 0.5)
+                # Other ideas:
+                #     If piece cant move, minus some points
+                #     Add weighted points for each possible capture a piece can do
+                #     Add points just based on the number of legal moves compared to opponent
+                    # score -= len(move_funcs[space // 2]((y,x))) * .01
     return score
 
 
 def is_better(curr, best, p):
+    """
+    Function to determine which minimax eval score is better based on which
+    player p is currently moving.
+    """
     if curr is None:
         return False
     elif best is None:
@@ -128,22 +155,46 @@ def is_better(curr, best, p):
         return curr < best if p == 0 else curr > best
 
 
-def minimax(state, curr_ply=0):
+def stop_test(limit):
+    multiplier = 0.1
+    return get_elapsed() > limit - (limit * multiplier)
+
+
+def makeMove(currentState, currentRemark, timeLimit):
+    global S_TIME
+    S_TIME = time.time() * 1000
+    limit = timeLimit * 1000
+
+    move = [["Move", currentState], "HA!"]
+    for i in range(1, 100):
+        # print(i)
+        temp = minimax(currentState, 0, i, limit)
+        if temp != None:
+            move = temp
+        if stop_test(limit):
+            break
+
+    return [["Move", move[0]], "Take that!"]
+
+
+def minimax(state, curr_ply, max_ply, time_limit):
     """
     I don't really think I'm finished with this but its a start.
 
     returns:
         tuple containing (board_state, value_of_state)
     """
-    # Elapsed time from start of search
-    # t = time.time() - S_TIME
-    r = True
+    r = False
+    # r = True
 
-    max_ply = 2
+    if stop_test(time_limit):
+        return None
+
     board = state.board
 
     if curr_ply == max_ply:
         se = staticEval(state)
+        # print(se)
         return (state, se)
 
     states = []
@@ -153,9 +204,10 @@ def minimax(state, curr_ply=0):
             piece = board[row][col]
             if piece != 0:
                 moves = move_funcs[piece // 2]((row, col))
+                if stop_test(time_limit):
+                    return None
                 for m in moves:
                     if can_move_funcs[piece // 2]((row, col), m, state):
-
                         new_b = filter_board((row, col), m, state)
                         next_state = BC_state(new_b, 1 - state.whose_move)
                         states.append(next_state)
@@ -167,7 +219,10 @@ def minimax(state, curr_ply=0):
         best_val = None
         best_state = None
         for s in states:
-            val = minimax(s, curr_ply + 1)[1]
+            move = minimax(s, curr_ply + 1, max_ply, time_limit)
+            if move == None:
+                return None
+            val = move[1]
             if is_better(val, best_val, state.whose_move):
                 best_val = val
                 best_state = next_state
@@ -175,11 +230,11 @@ def minimax(state, curr_ply=0):
     return (best_state, best_val)
 
 
-# def diff()
-
-
 def get_elapsed():
-    return time.time() - S_TIME
+    """
+    Returns time elapsed from the start of the current makeMove search
+    """
+    return (time.time() * 1000) - S_TIME
 
 
 class Operator:
@@ -230,9 +285,11 @@ def filter_board(start_pos, end_pos, state):
     piece = new_b[y1][x1]
     new_b[y2][x2] = piece
     new_b[y1][x1] = 0
-    captures = cap_dict[piece // 2](state, end_pos, start_pos)
-    for c in captures:
-        new_b[c[0]][c[1]] = 0
+    if piece // 2 != 6:     # Cause king just takes over spot
+        captures = cap_dict[piece // 2](state, end_pos, start_pos)
+        for c in captures:
+            # print("Piece taken")
+            new_b[c[0]][c[1]] = 0
 
     return new_b
 
@@ -327,7 +384,6 @@ def gen_king_moves(pos):
 def king_captures(s, move, pos):
     """
     If movable tile contains enemy, add capture move
-    Black = 0 (evens), White = 1 (odds)
     """
     captures = []
     tile = s.board[move[0]][move[1]]
@@ -350,14 +406,18 @@ def pincer_captures(s, move, pos):
         [(move[0], move[1] + 1), (move[0], move[1] + 2)]
     ]
     for pair in to_test:
-        try:
-            one_away = s.board[pair[0][0]][pair[0][1]]
-            two_away = s.board[pair[1][0]][pair[1][1]]
+        y1, x1 = pair[0][0], pair[0][1]
+        y2, x2 = pair[1][0], pair[1][1]
+        if y1 > 0 and x1 > 0 and y2 > 0 and x2 > 0:
+            try:
+                one_away = s.board[y1][x1]
+                two_away = s.board[y2][x2]
+            except IndexError:
+                continue
+
             if who(two_away) == s.whose_move and\
                     who(one_away) == 1 - s.whose_move:
-                captures.append(pair[0][0], pair[0][1])
-        except:
-            pass
+                captures.append(pair[0])
     return captures
 
 
@@ -370,13 +430,27 @@ def withdrawer_captures(s, move, pos):
 
     enemy_positions = get_surrounding(s, pos)
     for enemy in enemy_positions:
-        if in_line(enemy, move):
+        e = s.board[enemy[0]][enemy[1]]
+        if who(e) != s.whose_move and e != 0 and in_line(enemy, move):
             captures.append(enemy)
 
     return captures
 
 
+def leaper_captures(s, move, pos):
+    """
+    If movable tile contains enemy, add all tiles after it until you reach end
+    of board or reach non-blank tile
+    """
+    captures = get_line(s, move, pos)
+
+    return captures
+
+
 def get_surrounding(s, pos):
+    """
+    Returns pieces surrounding the space pos
+    """
     spaces = []
     for i in (-1, 0, 1):
         for j in (-1, 0, 1):
@@ -387,6 +461,9 @@ def get_surrounding(s, pos):
 
 
 def in_line(p1, p2):
+    """
+    Tests if p1 and p2 are in a straight line
+    """
     cardinal = p1[0] == p2[0] or p1[1] == p2[1]
     if cardinal:
         return True
@@ -396,14 +473,18 @@ def in_line(p1, p2):
 
 
 def get_line(s, p1, p2):
+    """
+    Returns an in order list of any nonblank pieces in a straight line from
+    p1 to p2 in s.
+    """
     pieces = []
     board = s.board
     x1, x2 = p1[1], p2[1]
     y1, y2 = p1[0], p2[0]
 
 
-    xvals = sorted((y1, y2))
-    yvals = sorted((x1, x2))
+    xvals = sorted((x1, x2))
+    yvals = sorted((y1, y2))
     if y1 == y2:    # horizontal move
         for x in range(xvals[0] + 1, xvals[1]):
             if board[y1][x] != 0:
@@ -413,8 +494,6 @@ def get_line(s, p1, p2):
             if board[y][x1] != 0:
                 pieces.append((y, x1))
     else:   # Diagonal move
-        if abs(x1 - x2) != abs(y1 - y2):
-            return False
         x_dir = p2[1] - p1[1]
         x_dir = x_dir // abs(x_dir)
 
@@ -434,50 +513,64 @@ def leaper_captures(s, move, pos):
     If movable tile contains enemy, add all tiles after it until you reach end
     of board or reach non-blank tile
     """
-    captures = get_line(s, move, pos)
+    captures = []
+    line = get_line(s, move, pos)
+    count = 0
+    for space in line:
+        piece = s.board[space[0]][space[1]]
+        if who(piece) != s.whose_move:
+            if piece != 0:
+                if count > 1:
+                    return []
+                else:
+                    captures.append(space)
+                count += 1
+        else:
+            return []
 
     return captures
 
 
 def coordinator_captures(s, move, pos):
     """
-    Idk how to do the logistics of how to check the intersection cause various
-    situations and stuff
-    Will think about later
+    Pretty sure this works
     """
     captures = []
     king = 12
     if s.whose_move == 1:
         king = 13
     k_space = None
-    try:
-        for row in s.board:
-            i = row.index(king)
+    for row in range(len(s.board)):
+        try:
+            i = s.board[row].index(king)
             k_space = (row, i)
-        if k_space is not None:
-            s1 = (k_space[0], move[1])
-            s2 = (move[0], k_space[1])
-            for s in (s1, s2):
-                piece = s.board[s[0]][s[1]]
-                if piece != 0 and who(piece) != s.whose_move:
-                    captures.append(s)
-    except:
-        pass
+            break
+        except:
+            pass
+    if k_space is not None:
+        s1 = (k_space[0], move[1])
+        s2 = (move[0], k_space[1])
+        for space in (s1, s2):
+            piece = s.board[space[0]][space[1]]
+            if piece != 0 and who(piece) != s.whose_move:
+                captures.append(space)
     return captures
 
 
 def imitator_captures(s, move, pos):
     """
-    Get tiles around it, look at what enemy pieces are around it, for each one
-    call that method and add to captures.
-    Should be easy to implement
+    This might work
     """
     captures = []
-    adj = get_surrounding(s, pos)
-    for space in adj:
-        piece = s.board[space[0]][space[1]]
-        if piece != 0 and who(piece) != s.whose_move:
-            captures += cap_dict[piece // 2](s, move, pos)
+    b = s.board
+    for y in range(len(b)):
+        for x in range(len(b[0])):
+            space = (y,x)
+            piece = b[y][x]
+            if piece != 0 and who(piece) != s.whose_move and piece // 2 != 4:
+                caps = cap_dict[piece // 2](s, move, pos)
+                if space in caps:
+                    captures.append(space)
     return captures
 
 
@@ -517,7 +610,7 @@ move_funcs = {
 
 def most_precond(prev_pos, new_pos, state):
     """
-    Precondition piece for all pieces but the king.
+    Precondition for all pieces but the king.
     """
     if not all_precond(prev_pos, new_pos, state):
         return False
@@ -527,67 +620,36 @@ def most_precond(prev_pos, new_pos, state):
     y2 = new_pos[0]
     x1 = prev_pos[1]
     x2 = new_pos[1]
-    leaper = board[y1][x1] // 2 == 3
-    capture_count = 0
+    piece = board[y1][x1]
+    leaper = piece // 2 == 3
+    cap_count = 0
 
     if in_line(prev_pos, new_pos):
         spaces = get_line(state, prev_pos, new_pos)
         capture_count = 0
 
         for s in spaces:
-            piece = board[s[0]][s[1]]
-            if piece == 0:
-                if who(space) == state.whose_move:
+            enemy = board[s[0]][s[1]]
+            if enemy != 0:
+                if who(enemy) == state.whose_move:
                     return False
-                else:
-                    capture_count += 1
+                cap_count += 1
                 if (not leaper) or (leaper and capture_count > 1):
-                    return False
-
-    # xvals = sorted((x2, x1))
-    # yvals = sorted((y2, y1))
-    # if y2 == y1:    # horizontal move
-        # for space in board[y1][xvals[0] + 1:xvals[1]]:
-            # if space != 0:
-                # if who(space) == state.whose_move:
-                    # return False
-                # else:
-                    # capture_count += 1
-                # if (not leaper) or (leaper and capture_count > 1):
-                    # return False
-    # elif x1 == x2:  # vertical move
-        # for row in board[yvals[0] + 1:yvals[1]]:
-            # if row[x1] != 0:
-                # if who(row[x1]) == state.whose_move:
-                    # return False
-                # else:
-                    # capture_count += 1
-                # if (not leaper) or (leaper and capture_count > 1):
-                    # return False
-    # else:   # Diagonal move
-        # if abs(x1 - x2) != abs(y1 - y2):
-            # return False
-        # x_dir = new_pos[1] - prev_pos[1]
-        # x_dir = x_dir // abs(x_dir)
-
-        # y_dir = new_pos[0] - prev_pos[0]
-        # y_dir = y_dir // abs(y_dir)
-        # space = [prev_pos[0] + y_dir, prev_pos[1] + x_dir]
-        # while space[0] != new_pos[0] and space[1] != new_pos[1]:
-            # if board[space[0]][space[1]] != 0:
-                # if who(board[space[0]][space[1]]) == state.whose_move:
-                    # return False
-                # else:
-                    # capture_count += 1
-                # if not leaper or (leaper and capture_count > 1):
-                    # return False
-            # space[0] += y_dir
-            # space[1] += x_dir
+                    enemy_leaper = enemy // 2 == 3
+                    imitator = piece // 2 == 4
+                    if not (imitator and cap_count == 1 and enemy_leaper):
+                        return False
+    else:
+        return False
 
     return board[y2][x2] == 0
 
 
 def all_precond(prev_pos, new_pos, state):
+    """
+    A precondition that does some checking that applies to all pieces. Many
+    pieces require further checking.
+    """
     board = state.board
     x1 = prev_pos[1]
     x2 = new_pos[1]
@@ -598,12 +660,15 @@ def all_precond(prev_pos, new_pos, state):
 
     has_piece = who(piece) == state.whose_move
     space_avail = dest_piece == 0 or who(dest_piece) != state.whose_move
-    pos_diff = not (prev_pos[0] == new_pos[0] and prev_pos[1] == new_pos[1])
+    pos_diff = prev_pos[0] != new_pos[0] or prev_pos[1] != new_pos[1]
 
+    # Check if next to a freezer
     adj = get_surrounding(state, prev_pos)
     for space in adj:
         piece = board[space[0]][space[1]]
-        if piece // 2 == 7 and who(piece) != state.whose_move:
+        freezer = piece // 2 == 7
+        enemy = who(piece) != state.whose_move
+        if freezer and enemy:
             return False
 
     return has_piece and space_avail and pos_diff
