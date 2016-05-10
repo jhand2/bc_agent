@@ -4,7 +4,7 @@
 
 S. Tanimoto, May 9
 '''
-VERSION = '0.8-BETA'
+VERSION = '0.9-BETA'
 
 # Get names of players and time limit from the command line.
 
@@ -26,7 +26,7 @@ else:
 #import baroque_succ as bcs
 import new_succ as bcs
 
-VALIDATE_MOVES = True # If players are trusted not to cheat, this could be turned off to save time.
+VALIDATE_MOVES = False # If players are trusted not to cheat, this could be turned off to save time.
 
 from winTester import winTester
 
@@ -71,7 +71,7 @@ def runGame():
     print(currentState)
     while not FINISHED:
         who = currentState.whose_move
-        side = 'BLACK'
+        side = "BLACK"
         if who==bcs.WHITE: side = 'WHITE'
         global CURRENT_PLAYER
         CURRENT_PLAYER = who
@@ -128,12 +128,12 @@ def timeout(func, args=(), kwargs={}, timeout_duration=1, default=None):
             threading.Thread.__init__(self)
             self.result = default
         def run(self):
-            # try:
-            self.result = func(*args, **kwargs)
-            # except:
-                # print("Seems there was a problem with the time.")
-                # print(sys.exc_info())
-                # self.result = default
+            try:
+                self.result = func(*args, **kwargs)
+            except:
+                print("Seems there was a problem with the time.")
+                print(sys.exc_info())
+                self.result = default
 
     pt = PlayerThread()
     #print("timeout_duration = "+str(timeout_duration))

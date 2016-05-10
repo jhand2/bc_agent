@@ -119,12 +119,12 @@ def staticEval(state):
             mult = 1 if who(space) == 1 else -1
             x += 1
             if space != 0:
-                if who(space) != state.whose_move:
-                    score += mult * weights[space // 2] * 1
-                else:
-                    score += mult * weights[space // 2]
+                score += mult * weights[space // 2]
 
-                # score -= ((min_y + y) * .01)
+                pincer_row = 1 if state.whose_move == BLACK else 6
+                other_row = 0 if state.whose_move == BLACK else 7
+                # if (space // 2 == 1 and y == pincer_row) or y == other_row:
+                    # score -= 0.00001 * mult
     return score
 
 
@@ -175,17 +175,12 @@ def makeMove(currentState, currentRemark, timeLimit):
         alpha = -math.inf
         beta = math.inf
         temp = minimax(currentState, 0, i, limit, alpha, beta)
-        # print(i)
         if temp != None:
-            # print("New Move")
             lvl_found = i
             move = temp
         if stop_test(limit):
             break
     
-    # print("---------")
-    # print(lvl_found)
-    # print("---------")
     player = currentState.whose_move
     return [[str(move[1]), move[0]], choose_message(move[1], player)]
 
@@ -207,9 +202,6 @@ def minimax(state, curr_ply, max_ply, time_limit, alpha, beta):
 
     if curr_ply == max_ply:
         se = staticEval(state)
-        # print(curr_ply)
-        # if curr_ply > 2:
-            # print(se)
         return (state, se)
 
     states = []
@@ -232,8 +224,8 @@ def minimax(state, curr_ply, max_ply, time_limit, alpha, beta):
         return (new_s, 0)
     else:
         # Alpha beta pruning search
+
         best_val = alpha if state.whose_move == WHITE else beta
-        # print(state.whose_move)
         best_state = None
         a = alpha
         b = beta
@@ -244,11 +236,6 @@ def minimax(state, curr_ply, max_ply, time_limit, alpha, beta):
             val = move[1]
 
             if is_better(val, best_val, state.whose_move):
-                # if (curr_ply == 0):
-                    # # print(state.whose_move)
-                    # # print("New: " + str(val))
-                    # # print("Prev Best " + str(best_val))
-                    # print("")
                 
                 best_val = val
                 best_state = s
@@ -256,8 +243,8 @@ def minimax(state, curr_ply, max_ply, time_limit, alpha, beta):
                     a = best_val
                 else:
                     b = best_val
-            # if b <= a:
-                # break
+            if b <= a:
+                break
 
     return (best_state, best_val)
 
@@ -498,7 +485,8 @@ def leaper_captures(s, move, pos):
     If movable tile contains enemy, add all tiles after it until you reach end
     of board or reach non-blank tile
     """
-    captures = get_line(s, move, pos)
+    captures = get_line(s, pos, move)
+    print(captures)
 
     return captures
 
@@ -672,10 +660,9 @@ def most_precond(prev_pos, new_pos, state):
         return False
 
     board = state.board
-    y1 = prev_pos[0]
-    y2 = new_pos[0]
-    x1 = prev_pos[1]
-    x2 = new_pos[1]
+    y1, x1 = prev_pos[0], prev_pos[1]
+    y2, x2 = new_pos[0], new_pos[1]
+
     piece = board[y1][x1]
     leaper = piece // 2 == 3
     imitator = piece // 2 == 4
@@ -683,18 +670,31 @@ def most_precond(prev_pos, new_pos, state):
 
     if in_line(prev_pos, new_pos):
         spaces = get_line(state, prev_pos, new_pos)
-        capture_count = 0
 
-        for s in spaces:
-            enemy = board[s[0]][s[1]]
-            if enemy != 0:
-                if who(enemy) == state.whose_move:
-                    return False
-                cap_count += 1
-                if (not leaper) or (leaper and capture_count > 1):
-                    enemy_leaper = enemy // 2 == 3
-                    if not (imitator and cap_count == 1 and enemy_leaper):
-                        return False
+        ls = len(spaces)
+        if ls > 1:
+            return False
+        elif ls == 1:
+            enemy_space = spaces[0]
+            enemy = board[enemy_space[0]][enemy_space[1]]
+            enemy_leaper = enemy // 2 == 3
+
+            
+            if who(enemy) == state.whose_move:
+                return False
+
+            if (not leaper) and (not imitator):
+                return False
+            # print("Test2")
+
+            d = get_direction(prev_pos, new_pos)
+            new_d = (d[0] * - 1, d[1] * -1)
+            n_space = (new_pos[0] + new_d[0], new_pos[1] + new_d[1])
+            if imitator and not enemy_leaper:
+                return False
+
+            if n_space[0] != enemy_space[0] or n_space[1] != n_space[1]:
+                return False
     else:
         return False
 
