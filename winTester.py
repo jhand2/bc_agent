@@ -1,6 +1,6 @@
 
 
-import baroque_succ as bcs
+import new_succ as bcs
 
 def winTester(s):
   possibleWin = "No win"
@@ -12,8 +12,8 @@ def winTester(s):
   b = s.board
   for i in range(8):
     for j in range(8):
-      if b[i][j] == bcs.k: black_king_detected = True
-      if b[i][j] == bcs.K: white_king_detected = True
+      if b[i][j] == bcs.BLACK_KING: black_king_detected = True
+      if b[i][j] == bcs.WHITE_KING: white_king_detected = True
   if white_king_detected and not black_king_detected: possibleWin = "Win for WHITE"
   if black_king_detected and not white_king_detected: possibleWin = "Win for BLACK"
   return possibleWin

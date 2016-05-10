@@ -91,13 +91,13 @@ def nickname():
 
 
 weights = {
-    1: 20,
-    2: 90,
-    3: 30,
-    4: 30,
-    5: 30,
-    6: 300,
-    7: 30
+    1: 1,
+    2: 5,
+    3: 3,
+    4: 3,
+    5: 9,
+    6: 200,
+    7: 5
 }
 
 
@@ -119,12 +119,29 @@ def staticEval(state):
             mult = 1 if who(space) == 1 else -1
             x += 1
             if space != 0:
-                if who(space) != state.whose_move:
-                    score += mult * weights[space // 2] * 1
-                else:
-                    score += mult * weights[space // 2]
+                score += mult * (weights[space // 2] * (space // 2))
+                if space // 2 == 6:
+                    # Points depending on where king is on board,
+                    # good on same side, bad on other side
+                    score += ((min_y + y) * .1) * mult
 
-                # score -= ((min_y + y) * .01)
+                    # More for each thing frozen by freezer
+                    if space // 2 == 7:
+                        for adj in get_surrounding(state, [y,x]):
+                            if who(space) == WHITE:
+                                piece = state.board[adj[0]][adj[1]]
+                                score += mult * ((weights[piece // 2]) * .3)
+
+                    # If coordinator in same col or row as king, minus some points
+                    if space // 2 == 2:
+                        king_pos = getKing(state, who(space))
+                        if y == king_pos[0] or x == king_pos[1]:
+                            score -= mult * (weights[2] * 0.5)
+                # Other ideas:
+                #     If piece cant move, minus some points
+                #     Add weighted points for each possible capture a piece can do
+                #     Add points just based on the number of legal moves compared to opponent
+                    # score -= len(move_funcs[space // 2]((y,x))) * .01
     return score
 
 
@@ -159,7 +176,7 @@ def is_better(curr, best, p):
 
 
 def stop_test(limit):
-    multiplier = 0.1
+    multiplier = 0.9
     return get_elapsed() > limit - (limit * multiplier)
 
 
@@ -167,10 +184,8 @@ def makeMove(currentState, currentRemark, timeLimit):
     global S_TIME
     S_TIME = time.time() * 1000
     limit = timeLimit * 1000
-    prev_eval = staticEval(currentState)
 
     move = [currentState, 0]
-    lvl_found = 0
     for i in range(1, 100):
         alpha = -math.inf
         beta = math.inf
@@ -178,16 +193,11 @@ def makeMove(currentState, currentRemark, timeLimit):
         # print(i)
         if temp != None:
             # print("New Move")
-            lvl_found = i
             move = temp
         if stop_test(limit):
             break
-    
-    # print("---------")
-    # print(lvl_found)
-    # print("---------")
-    player = currentState.whose_move
-    return [[str(move[1]), move[0]], choose_message(move[1], player)]
+
+    return [["Move", move[0]], "Take that!"]
 
 
 def minimax(state, curr_ply, max_ply, time_limit, alpha, beta):
@@ -197,8 +207,8 @@ def minimax(state, curr_ply, max_ply, time_limit, alpha, beta):
     returns:
         tuple containing (board_state, value_of_state)
     """
-    r = False
-    # r = True
+    # r = False
+    r = True
 
     if stop_test(time_limit):
         return None
@@ -207,9 +217,7 @@ def minimax(state, curr_ply, max_ply, time_limit, alpha, beta):
 
     if curr_ply == max_ply:
         se = staticEval(state)
-        # print(curr_ply)
-        # if curr_ply > 2:
-            # print(se)
+        print(se)
         return (state, se)
 
     states = []
@@ -233,7 +241,6 @@ def minimax(state, curr_ply, max_ply, time_limit, alpha, beta):
     else:
         # Alpha beta pruning search
         best_val = alpha if state.whose_move == WHITE else beta
-        # print(state.whose_move)
         best_state = None
         a = alpha
         b = beta
@@ -242,22 +249,15 @@ def minimax(state, curr_ply, max_ply, time_limit, alpha, beta):
             if move == None:
                 return None
             val = move[1]
-
             if is_better(val, best_val, state.whose_move):
-                # if (curr_ply == 0):
-                    # # print(state.whose_move)
-                    # # print("New: " + str(val))
-                    # # print("Prev Best " + str(best_val))
-                    # print("")
-                
                 best_val = val
-                best_state = s
+                best_state = next_state
                 if state.whose_move == WHITE:
                     a = best_val
                 else:
                     b = best_val
-            # if b <= a:
-                # break
+            if b <= a:
+                break
 
     return (best_state, best_val)
 
@@ -319,11 +319,8 @@ def filter_board(start_pos, end_pos, state):
     new_b[y1][x1] = 0
     if piece // 2 != 6:     # Cause king just takes over spot
         captures = cap_dict[piece // 2](state, end_pos, start_pos)
-        # if piece // 2 == 1:
-            # print("")
-            # print(str(y2) + ", " + str(x2))
-            # print(captures)
         for c in captures:
+            # print("Piece taken")
             new_b[c[0]][c[1]] = 0
 
     return new_b
@@ -443,20 +440,15 @@ def pincer_captures(s, move, pos):
     for pair in to_test:
         y1, x1 = pair[0][0], pair[0][1]
         y2, x2 = pair[1][0], pair[1][1]
-        if y1 >= 0 and x1 >= 0 and y2 >= 0 and x2 >= 0:
+        if y1 > 0 and x1 > 0 and y2 > 0 and x2 > 0:
             try:
                 one_away = s.board[y1][x1]
                 two_away = s.board[y2][x2]
-                # if move == (2, 2) and pos == (6, 2):
-                    # print("")
-                    # print(pair)
-                    # print(one_away)
-                    # print(two_away)
             except IndexError:
                 continue
 
             if who(two_away) == s.whose_move and\
-                    who(one_away) != s.whose_move:
+                    who(one_away) == 1 - s.whose_move:
                 captures.append(pair[0])
     return captures
 
@@ -678,7 +670,6 @@ def most_precond(prev_pos, new_pos, state):
     x2 = new_pos[1]
     piece = board[y1][x1]
     leaper = piece // 2 == 3
-    imitator = piece // 2 == 4
     cap_count = 0
 
     if in_line(prev_pos, new_pos):
@@ -693,6 +684,7 @@ def most_precond(prev_pos, new_pos, state):
                 cap_count += 1
                 if (not leaper) or (leaper and capture_count > 1):
                     enemy_leaper = enemy // 2 == 3
+                    imitator = piece // 2 == 4
                     if not (imitator and cap_count == 1 and enemy_leaper):
                         return False
     else:
