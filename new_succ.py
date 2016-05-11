@@ -324,7 +324,6 @@ Note: Whose move is already changed in the state, so the possible victim must ma
     if nextii < 0 or nextii > 7 or nextjj < 0 or nextjj > 7: return capture
     if state.board[nextii][nextjj]!=0: return capture  # not a vacant space beyond victim.
     # yes. jump him.
-    print("Leaper can capture")
     capture = True
     state.board[nextii][nextjj]=piece # Leaper to final location.
     state.board[nexti][nextj]=0   # remove captured piece.
@@ -408,33 +407,42 @@ def basic_moves(state, piece, i, j, requires_capture, capture_fun):
         ii = startI; jj = startJ
 
         leaper = piece // 2 == 3
+        imitator = piece // 2 == 4
         occ_count = 0
-        for kk in range(maxSteps+1):
+        for kk in range(maxSteps + 1):
             #print("trying kk as "+str(kk))
             #print("(ii,jj)="+str((ii,jj)))
 
-            news = BC_state(b, 1-w) # New state is created, with alternation of whose move.
-            if not leaper or occ_count == 1:
+            # Special case if the moving piece is a leaper or an imitator
+            # capturing a leaper
+            if leaper or (imitator and b[ii][jj] // 2 == 3):
+                news = BC_state(b, 1-w) # New state is created, with alternation of whose move.
+                capture = capture_fun(news,piece,ii,jj) # modifies the new state only if capturing happens.
+                if b[ii][jj] != 0:
+                    if occ_count == 1:
+                        break
+                    occ_count += 1
+
+                news.board[i][j] = 0 # Remove old piece
+                if not capture:
+                    # Just move to the space if there is no piece to capture
+                    news.board[ii][jj] = piece
+
+                if capture or not requires_capture:
+                    moves.append(news)
+            else:
                 if b[ii][jj] != 0:
                     break # next square is occupied
 
+                news = BC_state(b, 1-w) # New state is created, with alternation of whose move.
                 news.board[ii][jj] = piece
-            elif who(b[ii][jj]) == w:
-                break
-            else:
-                occ_count += 1
-            news.board[i][j] = 0
+                news.board[i][j] = 0
 
-            # test for possible capturing...
-            capture = capture_fun(news,piece,ii,jj) # modifies the new state only if capturing happens.
-            if leaper and not capture:
-                news.board[ii][jj] = piece
+                # test for possible capturing...
+                capture = capture_fun(news,piece,ii,jj) # modifies the new state only if capturing happens.
+                if capture or not requires_capture:
+                    moves.append(news)
 
-            if capture or not requires_capture:
-                moves.append(news)
-            if capture and leaper:
-                break
-                #print(news)
             ii += deltaI; jj += deltaJ;
     return moves
 

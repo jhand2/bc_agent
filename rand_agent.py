@@ -119,15 +119,12 @@ def staticEval(state):
             mult = 1 if who(space) == 1 else -1
             x += 1
             if space != 0:
-                if who(space) != state.whose_move:
-                    score += mult * weights[space // 2] * 1.5
-                else:
-                    score += mult * weights[space // 2]
+                score += mult * weights[space // 2]
 
                 pincer_row = 1 if state.whose_move == BLACK else 6
                 other_row = 0 if state.whose_move == BLACK else 7
-                if (space // 2 == 1 and y == pincer_row) or y == other_row:
-                    score -= 0.00001 * mult
+                # if (space // 2 == 1 and y == pincer_row) or y == other_row:
+                    # score -= 0.00001 * mult
     return score
 
 
@@ -166,8 +163,11 @@ def stop_test(limit):
     return get_elapsed() > limit - (limit * multiplier)
 
 
+PLY = 0
 def makeMove(currentState, currentRemark, timeLimit):
     global S_TIME
+    global PLY
+    PLY = 0
     S_TIME = time.time() * 1000
     limit = timeLimit * 1000
     prev_eval = staticEval(currentState)
@@ -189,6 +189,7 @@ def makeMove(currentState, currentRemark, timeLimit):
 
 
 def minimax(state, curr_ply, max_ply, time_limit, alpha, beta):
+    global PLY
     """
     I don't really think I'm finished with this but its a start.
 
@@ -197,6 +198,7 @@ def minimax(state, curr_ply, max_ply, time_limit, alpha, beta):
     """
     # r = False
     r = True
+    PLY = curr_ply
 
     if stop_test(time_limit):
         return None
@@ -227,8 +229,8 @@ def minimax(state, curr_ply, max_ply, time_limit, alpha, beta):
         return (new_s, 0)
     else:
         # Alpha beta pruning search
+
         best_val = alpha if state.whose_move == WHITE else beta
-        # print(state.whose_move)
         best_state = None
         a = alpha
         b = beta
@@ -239,11 +241,6 @@ def minimax(state, curr_ply, max_ply, time_limit, alpha, beta):
             val = move[1]
 
             if is_better(val, best_val, state.whose_move):
-                # if (curr_ply == 0):
-                    # # print(state.whose_move)
-                    # # print("New: " + str(val))
-                    # # print("Prev Best " + str(best_val))
-                    # print("")
                 
                 best_val = val
                 best_state = s
@@ -251,8 +248,8 @@ def minimax(state, curr_ply, max_ply, time_limit, alpha, beta):
                     a = best_val
                 else:
                     b = best_val
-            # if b <= a:
-                # break
+            if b <= a:
+                break
 
     return (best_state, best_val)
 
@@ -304,10 +301,8 @@ def filter_board(start_pos, end_pos, state):
     for row in state.board:
         r = row[:]
         new_b.append(r)
-    x1 = start_pos[1]
-    x2 = end_pos[1]
-    y1 = start_pos[0]
-    y2 = end_pos[0]
+    x1, x2 = start_pos[1], end_pos[1]
+    y1, y2 = start_pos[0], end_pos[0]
 
     piece = new_b[y1][x1]
     new_b[y2][x2] = piece
@@ -400,15 +395,16 @@ def gen_king_moves(pos):
     """
     moves = []
 
-    minx = pos[1] - 1 if pos[1] > min_x else pos[1]
-    maxx = pos[1] + 1 if pos[1] < max_x - 1 else pos[1]
-    miny = pos[0] - 1 if pos[0] > min_y else pos[0]
-    maxy = pos[0] + 1 if pos[0] < max_y else pos[0]
+    # minx = pos[1] - 1 if pos[1] > min_x else pos[1]
+    # maxx = pos[1] + 1 if pos[1] < max_x - 1 else pos[1]
+    # miny = pos[0] - 1 if pos[0] > min_y else pos[0]
+    # maxy = pos[0] + 1 if pos[0] < max_y else pos[0]
 
-    moves += gen_four_cardinal(pos, (minx, maxx), (miny, maxy))
-    moves += gen_four_diag(pos, (minx, maxx), (miny, maxy))
+    # moves += gen_four_cardinal(pos, (minx, maxx), (miny, maxy))
+    # moves += gen_four_diag(pos, (minx, maxx), (miny, maxy))
+    adj = get_surrounding(pos)
 
-    return moves
+    return adj
 
 
 def king_captures(s, move, pos):
@@ -475,7 +471,7 @@ def withdrawer_captures(s, move, pos):
     """
     captures = []
 
-    enemy_positions = get_surrounding(s, pos)
+    enemy_positions = get_surrounding(pos)
     for enemy in enemy_positions:
         e = s.board[enemy[0]][enemy[1]]
         init_dir = get_direction(enemy, pos)
@@ -494,12 +490,11 @@ def leaper_captures(s, move, pos):
     of board or reach non-blank tile
     """
     captures = get_line(s, pos, move)
-    print(captures)
 
     return captures
 
 
-def get_surrounding(s, pos):
+def get_surrounding(pos):
     """
     Returns pieces surrounding the space pos
     """
@@ -693,15 +688,14 @@ def most_precond(prev_pos, new_pos, state):
 
             if (not leaper) and (not imitator):
                 return False
-            # print("Test2")
 
             d = get_direction(prev_pos, new_pos)
-            new_d = (d[0] * - 1, d[1] * -1)
-            n_space = (new_pos[0] + new_d[0], new_pos[1] + new_d[1])
+            opp_dir = (d[0] * - 1, d[1] * -1)
+            prev_space = (new_pos[0] + opp_dir[0], new_pos[1] + opp_dir[1])
             if imitator and not enemy_leaper:
                 return False
 
-            if n_space[0] != enemy_space[0] or n_space[1] != n_space[1]:
+            if prev_space[0] != enemy_space[0] or prev_space[1] != enemy_space[1]:
                 return False
     else:
         return False
@@ -715,28 +709,31 @@ def all_precond(prev_pos, new_pos, state):
     pieces require further checking.
     """
     board = state.board
-    x1 = prev_pos[1]
-    x2 = new_pos[1]
-    y1 = prev_pos[0]
-    y2 = new_pos[0]
+    x1, x2 = prev_pos[1], new_pos[1]
+    y1, y2 = prev_pos[0], new_pos[0]
     piece = board[y1][x1]
     dest_piece = board[y2][x2]
+
 
     has_piece = who(piece) == state.whose_move
     space_avail = dest_piece == 0 or who(dest_piece) != state.whose_move
     pos_diff = prev_pos[0] != new_pos[0] or prev_pos[1] != new_pos[1]
 
+    # if PLY == 0 and piece == 12 and space_avail:
+        # print(new_pos)
+
     # Check if next to a freezer
-    adj = get_surrounding(state, prev_pos)
+    adj = get_surrounding(prev_pos)
     for space in adj:
         enemy = board[space[0]][space[1]]
         enemy_freezer = enemy // 2 == 7 and who(enemy) != state.whose_move
         friendly_freezer = piece // 2 == 7 and who(piece) == state.whose_move
         enemy_im = enemy // 2 == 4 and who(enemy) != state.whose_move
 
-
         if enemy_freezer or (friendly_freezer and enemy_im):
             return False
+    # if piece // 2 == 6 and state.whose_move == BLACK and has_piece and space_avail and pos_diff:
+        # print(new_pos)
 
     return has_piece and space_avail and pos_diff
 
